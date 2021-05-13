@@ -48,6 +48,34 @@ JumpTable = {
     "JMP"   :"111"
 }
 
+SymbolTable = {
+    "SP"    :"0",
+    "LCL"   :"1",
+    "ARG"   :"2",
+    "THIS"  :"3",
+    "THAT"  :"4",
+    "R0"    :"0",
+    "R1"    :"1",
+    "R2"    :"2",
+    "R3"    :"3",
+    "R4"    :"4",
+    "R5"    :"5",
+    "R6"    :"6",
+    "R7"    :"7",
+    "R8"    :"8",
+    "R9"    :"9",
+    "R10"   :"10",
+    "R11"   :"11",
+    "R12"   :"12",
+    "R13"   :"13",
+    "R14"   :"14",
+    "R15"   :"15",
+    "SCREEN":"16384",
+    "KBD"   :"24576"
+}
+
+variableSymbol_Value = 16
+
 def isWhitespace(line):
     i=0
     while(i<len(line) and line[i]==' '):
@@ -82,13 +110,31 @@ def code_nbit_AInstr(decStrVal, n):
     return instruction
 
 def parse_AInstruction(line, index):
+    global variableSymbol_Value
     A_value_str = ''
+    tableVal = ''
     i=index
-    while(i<len(line) and line[i]!=' '):
+    while(i<len(line) and line[i]!='\n' and line[i]!=' '):
         A_value_str+=line[i]
         i+=1
     print(" A instruction value = ", A_value_str)
-    result = code_nbit_AInstr(A_value_str, 16) # We need 16 bit value
+    
+    
+    if(A_value_str.isnumeric()):
+        result = code_nbit_AInstr(A_value_str, 16) # We need 16 bit value
+    else:
+        # @Symbol
+        # Check if symbol already present in symbol table   
+        # If not, it's a variable - add it to the table
+        try:
+            tableVal = SymbolTable[A_value_str]
+        except KeyError:
+            tableVal = variableSymbol_Value
+            SymbolTable[A_value_str] = tableVal
+            variableSymbol_Value+=1
+            print("Adding variable: ", A_value_str, " : ", tableVal)
+        
+        result = code_nbit_AInstr(tableVal, 16)
     return result
 
 def destPresent(line, index):
@@ -119,7 +165,7 @@ def getCompIndex(line, index):
 def parseCompField(line, index):
     i = getCompIndex(line, index)
     comp=''
-    while(i<len(line) and line[i]!=';' and line[i]!='\n'):
+    while(i<len(line) and line[i]!=';' and line[i]!='\n' and line[i]!='/'):
         if line[i]!=' ':
             comp+=line[i]
         i+=1
@@ -143,7 +189,7 @@ def parseJumpField(line, index):
     i=getJumpIndex(line, index)
     assert(i!=-1)
     jump = ''
-    while(i<len(line) and line[i]!='\n'):
+    while(i<len(line) and line[i]!='\n' and line[i]!='/'):
         if(line[i]!=' '):
             jump+=line[i]
         i+=1
@@ -211,6 +257,39 @@ def getDestFileName(srcFileName):
     print("Output File Name: ", destFile)
     return destFile
 
+# Does input line have label declaration
+def isLabel(line):
+    i=0
+    while(line[i]==' '):
+        i+=1
+    if line[i]=='(':
+        return True
+    return False
+
+# Inserts the label declaration into the symbol table
+def insertLabel(line, lineNumber):
+    i=0
+    label = ''
+    while(line[i]!='('):
+        i+=1
+    i+=1
+    while(line[i]!=')'):
+        label+=line[i]
+        i+=1
+    
+    SymbolTable[label] = lineNumber
+    print("inserted ", label, " : ", SymbolTable[label], " into symbol table")
+
+## First pass of the assembler
+# Search for and add label symbols to the symbol table
+def firstPass(fileLines):
+    numSymbols=0
+    
+    for i in range(len(fileLines)):
+        if(isLabel(fileLines[i])==True):
+            insertLabel(fileLines[i], i-numSymbols)
+            numSymbols+=1
+
 ## Input - source code file
 ## Generates binary code and writes .hack file
 def assemble(srcFileName):
@@ -218,13 +297,20 @@ def assemble(srcFileName):
     destFileName = getDestFileName(srcFileName)
 
     destFileObj = open(destFileName, "w+")
+    
+    ## Add label symbols to symbol table
+    firstPass(fileLines)
+
     for line in fileLines:
-        result = parseLine(line)
-        destFileObj.write(result+'\n')
+        if(isLabel(line) == False):
+            result = parseLine(line)
+            destFileObj.write(result+'\n')
     destFileObj.close()
 
 # fileLines = processFile("../add/Add.asm")
-fileName = "../max/MaxL.asm"
+# fileName = "../max/Max.asm"
+fileName = "../rect/Rect.asm"
+# fileName = "../pong/Pong.asm"
 assemble(fileName)
 #parseLine(fileLines[10])
 
